@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CheatTable CheatEngineTableVersion="34">
+  <CheatEntries>
+    <CheatEntry>
+      <ID>1</ID>
+      <Description>"Activate"</Description>
+      <Options moHideChildren="1"/>
+      <LastState Activated="1"/>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>{$lua}
+[ENABLE]
+if not openProcess('GTA5.exe') then sleep(250) if getOpenedProcessID()==0 then getAutoAttachList().add('GTA5.exe') sleep(250) end end
+if addr == nil then
+autoAssemble([[
+aobscanmodule(FriendsListPTR,GTA5.exe,48 03 0D ? ? ? ? E9 ? ? ? ? 48 8D 05)
+registersymbol(FriendsListPTR)
+aobscanmodule(FriendsCountADDR,GTA5.exe,3B 0D ? ? ? ? 73 13 48 63 C9)
+registersymbol(FriendsCountADDR)
+]])
+
+addr = 0
+addr=getAddress("FriendsListPTR") addr=addr+readInteger(addr+3)+7
+unregisterSymbol("FriendsListPTR")registerSymbol("FriendsListPTR",addr,true)
+
+addr=getAddress("FriendsCountADDR") addr=addr+readInteger((addr+2))+6
+unregisterSymbol("FriendsCountADDR")registerSymbol("FriendsCountADDR",addr,true)
+
+end
+
+[DISABLE]
+addr = nil
+
+</AssemblerScript>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>2</ID>
+          <Description>"RID Joiner GUI"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>{$lua}
+[ENABLE]
+RIDJoiner()
+[DISABLE]
+
+
+</AssemblerScript>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+  </CheatEntries>
+  <UserdefinedSymbols/>
+  <LuaScript>function TCOMP(T,C,...) for K,V in pairs(C) do T[K]=V end if select('#',...)&gt;0 then return TCOMP(T,...) else return T end end
+
+function RIDJoiner()
+if not RIDJoinerForm then
+oFriendName = 0x0080           --offset 0x080 Friend name
+oFriendRID  = 0x00B8           --offset 0x0B8 Friend RID
+oFriendsiOnline = 0x00c4       --offset 0x0c4 is online
+oFriendsiMultiplayer = 0x01f8  --offset 0x1f8 value 1 or 0 "1 is online and in session"
+
+
+RIDJoinerForm = createForm(true)
+TCOMP(RIDJoinerForm,{Caption='RIDJoiner',Left=110,Top=110,Height=270,Width=400})
+local AssignRID = createToggleBox(RIDJoinerForm)
+TCOMP(AssignRID,{Caption='Assign RID to the Selected',Left=212,Top=40,Height=40,Width=180})
+local TargetRID = createEdit(RIDJoinerForm)
+TCOMP(TargetRID,{TextHint='Target RID',Left=212,Top=85,Height=40,Width=180,MaxLength=10,NumbersOnly=true})
+TargetRID.Font.Size = 12
+-- Updaters
+local update = createToggleBox(RIDJoinerForm)
+TCOMP(update,{Caption='Update',Left=217,Top=145,Height=40,Width=90})
+local updateTimer = createTimer(RIDJoinerForm,false)
+local updateTimer2 = createTimer(RIDJoinerForm,false)
+updateTimer.Interval = 3000
+updateTimer2.Interval = 500
+local updateInterval = createEdit(RIDJoinerForm)
+TCOMP(updateInterval,{TextHint='Interval',Text=3000,Left=311,Top=155,Height=40,Width=50,MaxLength=4,NumbersOnly=true})
+local ms=createLabel(RIDJoinerForm)
+TCOMP(ms,{Caption='ms',Left=366,Top=160,Height=40,Width=120})
+-- Labels
+local SelectedFriendRID = createLabel(RIDJoinerForm)
+TCOMP(SelectedFriendRID,{Caption='Selected Friend RID:',Left=10,Top=215,Height=40,Width=120})
+SelectedFriendRID.Font.Size = 11
+local FriendLabel=createLabel(RIDJoinerForm)
+TCOMP(FriendLabel,{Caption='Online Friends List:',Left=10,Top=25,Height=40,Width=120})
+-- Online Friends List Box
+local OnlineFriendsList = createListBox(RIDJoinerForm)
+TCOMP(OnlineFriendsList,{Color = '0x00DFF7FF',Left=10,Top=40,Height=160,Width=200,ScrollWidth = 10})
+
+local EnableJoinOpt = createCheckBox(RIDJoinerForm)
+TCOMP(EnableJoinOpt,{Caption ='Make Some Friends Online (Use Only If There Is No One Online To Join)',Left=10,Top=2})
+
+-- RID Assign To Join
+local RIDi = {}
+local BFriendListptr = readPointer("FriendsListPTR")
+local FriendsTotalNum = readInteger(getAddress("FriendsCountADDR"))
+function getOnlineFriendsList()
+	 local OnlineFriendsNum = 0
+		for i = 0 ,FriendsTotalNum-1, 1 do
+        local FriendIsInMultiplayer = readInteger(BFriendListptr + oFriendsiMultiplayer + 0x200*i)
+                if EnableJoinOpt.Checked == true and i &lt;= 8  then
+                   local MakeOnline = BFriendListptr + oFriendsiOnline + 0x200*i
+                   local MakeInMultiplayer = BFriendListptr + oFriendsiMultiplayer + 0x200*i
+                   updateTimer.Interval = 500
+                   writeInteger(MakeOnline,-1)
+                   writeInteger(MakeInMultiplayer,1)
+                else
+                   updateTimer.Interval = 3000
+                end
+				if FriendIsInMultiplayer == 1 then
+                    RIDi[OnlineFriendsNum] = i -- to avoid any mismatch in friends offsets for any reason
+					OnlineFriendsNum = OnlineFriendsNum + 1
+					OnlineFriendsList.Items.Add(OnlineFriendsNum ..': '.. readString(BFriendListptr + oFriendName + 0x200*i));
+                end
+	 end
+end
+
+getOnlineFriendsList()
+
+AssignRID.OnClick = function ()
+   LastIndex = OnlineFriendsList.ItemIndex
+   local TargetRID_1 = tonumber (TargetRID.text)
+   local function FixRID()
+         TargetRID_1 = tonumber (TargetRID.text)
+         if TargetRID_1 ~= nil and (OnlineFriendsList.ItemIndex ~= -1 and OnlineFriendsList.ItemIndex == LastIndex)  then
+         local RIDptr_1 = BFriendListptr  + oFriendRID + (0x200*RIDi[OnlineFriendsList.ItemIndex])
+         writeInteger(RIDptr_1,TargetRID_1)
+         else
+          updateTimer2.Enabled = false
+         end
+   end
+         if TargetRID_1 == nil or OnlineFriendsList.ItemIndex == -1 then
+          AssignRID.Checked = false
+         elseif AssignRID.Checked == true  then
+          updateTimer2.OnTimer = function() FixRID() end
+		  FixRID()
+		  updateTimer2.Enabled = true
+	     else
+		  updateTimer2.Enabled = false
+	     end
+end
+
+OnlineFriendsList.OnSelectionChange = function ()
+   if OnlineFriendsList.ItemIndex ~= -1   then
+     local CurrentRID =  readInteger( BFriendListptr  + oFriendRID + (0x200*RIDi[OnlineFriendsList.ItemIndex]))
+     SelectedFriendRID.Caption = 'Selected Friend RID: ' .. tostring(CurrentRID)
+   end
+   if  OnlineFriendsList.ItemIndex ~= LastIndex  then
+    AssignRID.Checked = false
+   end
+end
+update.OnClick = function()
+       local function updateList()
+       local lastIndex = OnlineFriendsList.ItemIndex
+            OnlineFriendsList.Items.Clear()
+            getOnlineFriendsList()
+       if OnlineFriendsList.Items.Count &gt; 0 then
+            if lastIndex &lt; OnlineFriendsList.Items.Count then
+			   OnlineFriendsList.ItemIndex = lastIndex
+			else
+               OnlineFriendsList.ItemIndex = 0
+            end
+       else
+          AssignRID.Checked = false
+          SelectedFriendRID.Caption = 'Selected Friend RID:'
+       end
+    end
+	   if update.Checked == true then
+		  updateTimer.OnTimer = function() updateList() end
+		  updateList()
+		  updateTimer.Enabled = true
+	   else
+		  updateTimer.Enabled = false
+	   end
+end
+updateInterval.OnChange = function()
+   local newInterval = tonumber(updateInterval.Text)
+       if newInterval and newInterval &gt;= 500 then
+          updateTimer.Interval = newInterval
+       else
+	      updateTimer.Interval = 3000
+		  sleep(200)
+		  updateInterval.Text = '3000'
+       end
+    end
+RIDJoinerForm.OnClose = function()
+       RIDJoinerForm.destroy()
+       RIDJoinerForm = nil
+	   updateTimer.destroy()
+	   updateTimer2.destroy()
+    end
+  end
+end
+</LuaScript>
+</CheatTable>
